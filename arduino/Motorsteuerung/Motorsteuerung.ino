@@ -5,6 +5,7 @@
  Description:
 			1) uC recieves stepper run command including duration for each stepper via SPI
 			2) requested Steppers start up simultaneously
+			   ->soft acceleration results in higher speeds due to more torque in the beginning
 			3) once Steppers reach full speed they keep running until each requested time runs out
 			4) after longest request time is reached, a new run command can be recieved
 			5) while steppers are running, only stop command will be processed
