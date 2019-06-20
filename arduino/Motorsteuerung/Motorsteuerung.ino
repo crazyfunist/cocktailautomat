@@ -33,6 +33,10 @@ volatile unsigned long rampUpStepCount = 0;
 volatile unsigned long totalSteps = 0;
 unsigned int c0;
 
+unsigned long comSteps[NUM_STEPPERS];
+
+bool steppersTurning;
+
 constexpr auto MESSAGELENGTH = 4;
 String SerialBufferString = "";
 
@@ -71,8 +75,10 @@ void setup() {
 	TIMER1_INTERRUPTS_OFF;
 	interrupts();
 
-
+	steppersTurning = false;
 	c0 = 1600;
+
+	resetCommandedSteps();
 }
 
 
@@ -82,27 +88,49 @@ void loop() {
 
 /*
 * Author: Johannes Langner
+* Date: 20.06.19
+* Purpose: calculate highest commanded steps
+* State: dev
+*/
+unsigned long calcTotalSteps(void) {
+	unsigned long maxVal = 0;
+	for (int i = 0; i < NUM_STEPPERS; i++) {
+		maxVal = comSteps[i] > maxVal ? comSteps[i] : maxVal;
+	}
+	return maxVal;
+}
+
+/*
+* Author: Johannes Langner
 * Date: 19.06.19
 * Purpose: activate timer ISR, start running steppers
 * State: dev
 */
-void startSteppers(unsigned long s1, unsigned long s2, unsigned long s3, unsigned long s4, unsigned long s5, unsigned long s6, unsigned long s7, unsigned long s8) {
-	steppers[0].timeRemaining = s1;
-	steppers[1].timeRemaining = s2;
-	steppers[2].timeRemaining = s3;
-	steppers[3].timeRemaining = s4;
-	steppers[4].timeRemaining = s5;
-	steppers[5].timeRemaining = s6;
-	steppers[6].timeRemaining = s7;
-	steppers[7].timeRemaining = s8;
+void startSteppers(void) {
+	for (int i = 0; i < NUM_STEPPERS; i++) {
+		steppers[i].timeRemaining = comSteps[i];
+	}
+	resetCommandedSteps();
 	digitalWrite(DIR_PIN, LOW);//pump forward
-	totalSteps = max(s1, s2, s3, s4, s5, s6, s7, s8);
+	totalSteps = calcTotalSteps();
 	d = c0;
 	OCR1A = d;
 	stepCount = 0;
+	steppersTurning = true;
 	TIMER1_INTERRUPTS_ON;
 }
 
+/*
+* Author: Johannes Langner
+* Date: 20.06.19
+* Purpose: reset commanded steps to zero
+* State: dev
+*/
+void resetCommandedSteps(void) {
+	for (int i = 0; i < NUM_STEPPERS; i++) {
+		comSteps[i] = 0;
+	}
+}
 /*
 * Author: Johannes Langner
 * Date: 19.06.19
@@ -111,19 +139,22 @@ void startSteppers(unsigned long s1, unsigned long s2, unsigned long s3, unsigne
 */
 void stopSteppers(void) {
 	stepCount = 0;
+	steppersTurning = false;
 	TIMER1_INTERRUPTS_OFF
 }
 
 /*
 * Author: Johannes Langner
 * Date: 19.06.19
-* Purpose: reverse pump
+* Purpose: reverse run all pumps
 * State: dev
 */
 void flushTubes(unsigned long duration) {
 	for (int i = 0; i < NUM_STEPPERS; i++) {
 		steppers[i].timeRemaining = duration;
 	}
+	resetCommandedSteps();
+	steppersTurning = true;
 	digitalWrite(DIR_PIN, HIGH);//reverse direction
 	TIMER1_INTERRUPTS_ON;
 }
@@ -134,26 +165,64 @@ void flushTubes(unsigned long duration) {
 * Date: 19.06.19
 * Purpose: handle incoming messages from Serial connection
 * State: pre-dev
+* Description: commands: s			stop pumps
+*						 fX			flush tubes for X ml
+*						 pX1,X2,..	pump1 X1 ml, pump2 X2 ml,.. 
 */
-void serialEvent() {
-	while (Serial.available()) {
-		// get byte:
-		char in = (char)Serial.read();
-		delay(2);  //delay to allow byte to arrive in input buffer
-		SerialBufferString += in;
-		if (SerialBufferString.length() >= MESSAGELENGTH) {
-			if (SerialBufferString.startsWith("pump")) {
-				Serial.println("Pumpe:");
-				//pumpselector = strtol(SerialBufferString.substring(SerialBufferString.indexOf(';') + 1),NULL,10);
-				//stepCount_pumpe[pumpselector] = strtol(SerialBufferString.substring(SerialBufferString.lastIndexOf(';') + 1),NULL,10);
-				//Serial.println(pumpselector);
-				Serial.println("Menge:");
-				//Serial.println(stepCount_pumpe[pumpselector]);
-			} else if(SerialBufferString.startsWith("conn")){
-				Serial.println("connected");
+void serialEvent(void) {
+	if (Serial.available()) {
+		if (steppersTurning) {
+			if ((char)Serial.read() == 's') {
+				//STOP command
+				stopSteppers();
+				Serial.print('s');
+				return;
+			}
+		}
+		else {
+			char command = (char)Serial.read();
+			delay(50); //wait for Bytes to arrive
+			if (Serial.available() && command == 'f') {
+				while (Serial.available()) {
+					char val = (char)Serial.peek();
+					if (isDigit(val)) {
+						Serial.read();
+						comSteps[0] *= 10;
+						comSteps[0] += val;
+					}
+					else {
+						break;
+					}
+				}
+				flushTubes(comSteps[0]);
+				Serial.print('f');
+				return;
+			}
+			if (Serial.available() && command == 'p') {
+				int i = 0;
+				while (Serial.available()) {
+					char val = (char)Serial.peek();
+					if (isDigit(val)) {
+						Serial.read();
+						comSteps[i] *= 10;
+						comSteps[i] += val;
+					}
+					else if(val=','){
+						Serial.read();
+						i++;
+						if (i >= NUM_STEPPERS) break;
+					}
+					else {
+						break;
+					}
+				}
+				startSteppers();
+				Serial.print('p');
+				return;
 			}
 		}
 	}
+	return;
 }
 
 
