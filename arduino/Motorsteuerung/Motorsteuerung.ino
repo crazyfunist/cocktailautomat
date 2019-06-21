@@ -7,17 +7,26 @@
 			2) requested Steppers start up simultaneously
 			   ->soft acceleration results in higher speeds due to more torque in the beginning
 			3) once Steppers reach full speed they keep running until each requested time runs out
-			4) after longest request time is reached, a new run command can be recieved
+			4) after longest request time is reached and pumps are stopped, a new run command can be recieved
 			5) while steppers are running, only stop command will be processed
+Wiring: 
+      Arduino UNO R3 only! on any other board, ports may differ.
+      Stepper 1 -> D7
+      Stepper 2 -> D6
+      Stepper 3 -> D5
+      Stepper 4 -> D4
+      Stepper 5 -> D3
+      Stepper 6 -> D2
+      Stepper 7 -> D13
+      Stepper 8 -> D12
+
+      DIR -> D8
+      ENA -> D9
 */
 #include <stdlib.h>
 
-#define DIR_PIN            2
-#define ENABLE_PIN         3
-
-#define STEP_PIN_1         4
-#define STEP_PIN_2         5
-#define STEP_PIN_3         6
+#define DIR_PIN            8
+#define ENABLE_PIN         9
 
 #define NUM_STEPPERS       8
 #define INTERVALL_TOPSPEED 100
@@ -109,7 +118,7 @@ unsigned long calcTotalSteps(void) {
 */
 void startSteppers(void) {
 	for (int i = 0; i < NUM_STEPPERS; i++) {
-		steppers[i].timeRemaining = comSteps[i];
+		steppers[i].timeRemaining = comSteps[i]; //insert calculation ml->steps here
 	}
 	resetCommandedSteps();
 	digitalWrite(DIR_PIN, LOW);//pump forward
@@ -134,14 +143,15 @@ void resetCommandedSteps(void) {
 }
 /*
 * Author: Johannes Langner
-* Date: 19.06.19
-* Purpose: activate timer ISR, start running steppers
+* Date: 21.06.19
+* Purpose: deactivate timer ISR, send message via serial
 * State: dev
 */
 void stopSteppers(void) {
+  TIMER1_INTERRUPTS_OFF
 	stepCount = 0;
 	steppersTurning = false;
-	TIMER1_INTERRUPTS_OFF
+  Serial.println('d');
 }
 
 /*
@@ -163,12 +173,12 @@ void flushTubes(unsigned long duration) {
 
 /*
 * Author: Johannes Langner
-* Date: 19.06.19
+* Date: 21.06.19
 * Purpose: handle incoming messages from Serial connection
-* State: pre-dev
+* State: dev
 * Description: commands: s			stop pumps
-*						 fX			flush tubes for X ml
-*						 pX1,X2,..	pump1 X1 ml, pump2 X2 ml,.. 
+*						 fX;			flush tubes for X ml
+*						 pX1,X2,..;	pump1 X1 ml, pump2 X2 ml,.. 
 */
 void serialEvent(void) {
 	if (Serial.available()) {
@@ -188,6 +198,7 @@ void serialEvent(void) {
 					char val = (char)Serial.peek();
 					if (isDigit(val)) {
 						Serial.read();
+            if(val>10)val-=48;//covert from ascii to byte value
 						comSteps[0] *= 10;
 						comSteps[0] += val;
 					}
@@ -195,8 +206,7 @@ void serialEvent(void) {
 						break;
 					}
 				}
-				flushTubes(comSteps[0]);
-				Serial.print('f');
+        flushTubes(comSteps[0]);
 				return;
 			}
 			if (Serial.available() && command == 'p') {
@@ -205,6 +215,7 @@ void serialEvent(void) {
 					char val = (char)Serial.peek();
 					if (isDigit(val)) {
 						Serial.read();
+            if(val>10)val-=48;//covert from ascii to byte value
 						comSteps[i] *= 10;
 						comSteps[i] += val;
 					}
@@ -212,13 +223,15 @@ void serialEvent(void) {
 						Serial.read();
 						i++;
 						if (i >= NUM_STEPPERS) break;
-					}
+					}else if(val=';'){
+           Serial.read();            
+           break;
+          }
 					else {
 						break;
 					}
 				}
 				startSteppers();
-				Serial.print('p');
 				return;
 			}
 		}
