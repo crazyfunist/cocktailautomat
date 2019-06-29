@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'qrScanner.dart';
 import 'qr_main_screen.dart';
+import 'cocktail_manager.dart';
 
 class MainScreen extends StatefulWidget {
   @override
@@ -14,6 +15,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text("Main Screen")),
       body: Center(
         child: _contentWidget(),
       ),
@@ -26,7 +28,7 @@ class _MainScreenState extends State<MainScreen> {
       child: Column(
         children: <Widget>[
           Padding(
-              padding: const EdgeInsets.only(
+            padding: const EdgeInsets.only(
               top: _topSectionTopPadding,
               left: 30.0,
               right: 20.0,
@@ -58,7 +60,24 @@ class _MainScreenState extends State<MainScreen> {
                 );
               },
             ),
-          )
+          ),
+          Padding(
+            padding: const EdgeInsets.only(
+              top: _topSectionTopPadding,
+              left: 30.0,
+              right: 20.0,
+              bottom: _topSectionBottomPadding,
+            ),
+            child: FlatButton(
+              child: const Text('show Cocktails'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => CocktailManager()),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );

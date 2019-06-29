@@ -19,6 +19,7 @@ class _MainScreenState extends State<QRMainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(title: const Text("QR Generater")),
       body: _contentWidget(),
       resizeToAvoidBottomPadding: true,
     );
