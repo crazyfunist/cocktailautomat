@@ -29,8 +29,8 @@ Wiring:
 #define ENABLE_PIN         9
 
 #define NUM_STEPPERS       8
-#define INTERVAL_STARTSPEED 160
-#define INTERVAL_TOPSPEED 5
+#define INTERVAL_STARTSPEED 1600
+#define INTERVAL_TOPSPEED 400
 
 
 volatile unsigned int maxSpeed;
@@ -282,11 +282,12 @@ void loop() {
 		steppers[7].timeRemaining--;
 		steppersFinished = false;
 	}
-	delayMicroseconds(d);
+	delayMicroseconds(370);
 	PORTD &= ~0b11111100;
 	PORTB &= ~0b00110000;
 
-	if (stopRequest||(steppersFinished && steppersStarted)) {
+	if (stopRequest || (steppersFinished && steppersStarted)) {
+		Serial.println("topping..");
 		steppersStarted = false;
 		if (stopRequest)stopRequest = false;
 		stopSteppers();
@@ -294,12 +295,10 @@ void loop() {
 
 	// soft acceleration
 	n++;
-	d = d - (800 * d) / (1400 * n + 1);
+	d = d - (80 * d) / (140 * n + 1);
 	if (d <= maxSpeed) {
 		d = maxSpeed;
 	}
-	else {
-		Serial.println(d);
-	}
-	//delayMicroseconds(d);
+	//Serial.println(d);
+	delayMicroseconds(370);
 }
